@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <style>
+    body  {
+      background-image: url("res/background");
+      background-size: cover;
+      background-color: #cccccc;
+    }
+    .container {
+      margin-left: 15%;
+      margin-top: 2%;
+      padding: auto;
+      border: #cccccc;
+    }
+    .player {
+      position: absolute;
+      top: 10%;
+      left: 4%;
+      size: 5%;
+    }
+    .pc {
+      position: absolute;
+      top: 10%;
+      right: 3%;
+      size: 5%;
+    }
+    .output_canvas {
+      border: #cccccc;
+      border-style: solid;
+      border-width: 20px;
+      border-image: repeating-radial-gradient(
+			circle at 10px,
+			turquoise,
+			rgb(10, 31, 221) 2px,
+			rgb(76, 124, 4) 4px,
+			rgb(209, 8, 102) 2px
+		)
+		1;
+    }
+    span {
+      font-size: xx-large;
+    }
+    h1 {
+      margin-left: 18%;
+      font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+      color: #cccccc;
+    }
+    img {
+      width: 130px;
+      height: 130px;
+      display: block;
+      margin-top: 10%;
+    }
+    </style>
+    <h1>Sitúe su mano a la altura del pecho y realice un gesto (Piedra, Papel o Tijera)</h1>
+</head>
+
+<body>
+  <div class="player">
+    <span style="color: rgb(81, 190, 81);">Elegiste:</span>
+    <img src="" class="player-choice">
+  </div>
+  <div class="container">
+    <video class="input_video" hidden></video>
+    <canvas class="output_canvas" width="1280px" height="720px"></canvas>
+    <h1 class="result" style="margin-left: 30%;">Has</h1>
+  </div>
+  <div class="pc">
+    <span style="color: rgb(194, 94, 94);">Tu rival eligió:</span>
+    <img src="" class="pc-choice" style="margin-left: 20%">
+  </div>
+  <script type="module">
+    const videoElement = document.getElementsByClassName('input_video')[0];
+    const canvasElement = document.getElementsByClassName('output_canvas')[0];
+    const canvasCtx = canvasElement.getContext('2d');
+
+    let handPose = [];
+
+    function distance(point1, point2) {
+      var dist = Math.sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2);
+      return dist;
+    }
+
+    function game(person, pc) {
+      if (person === "Scissor") {
+        if (pc === "Paper") {
+          return "Ganado";
+        } else if (pc === "Stone") {
+          return "Perdido";
+        } else {
+          return "Empatado";
+        }
+      } else if (person === "Paper") {
+        if (pc === "Stone") {
+          return "Ganado";
+        } else if (pc === "Scissor") {
+          return "Perdido";
+        } else {
+          return "Empatado";
+        }
+      } else {
+        if (pc === "Scissor") {
+          return "Ganado";
+        } else if (pc === "Paper") {
+          return "Perdido";
+        } else {
+          return "Empatado";
+        }
+      }
+    }
+    
+    function onResults(results) {
+      canvasCtx.save();
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      canvasCtx.drawImage(
+          results.image, 0, 0, canvasElement.width, canvasElement.height);
+      if (results.multiHandLandmarks) {
+        let points = []
+        for (const landmarks of results.multiHandLandmarks) {
+          drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS,
+                         {color: '#00FF00', lineWidth: 5});
+          drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 2});
+          points = landmarks;
+        }
+          //console.log(points);
+          if (points.length > 0) {
+            if (distance(points[0], points[9]) > distance(points[9], points[12])) {
+              //console.log("Stone");
+              handPose.push("Stone");
+            } else if (distance(points[0], points[13]) > distance(points[13], points[16])) {
+              //console.log("Scissor");
+              handPose.push("Scissor");
+            } else {
+              //console.log("Paper");
+              handPose.push("Paper");
+          }
+          }
+      }
+      canvasCtx.restore();
+    }
+    
+    const hands = new Hands({locateFile: (file) => {
+      return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+    }});
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+    hands.onResults(onResults);
+
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await hands.send({image: videoElement});
+        if (handPose.length > 49) {
+          console.log(handPose);
+          var countPapers = handPose.filter(x => x === "Paper").length;
+          var countScissors = handPose.filter(x => x === "Scissor").length;
+          var countStones = handPose.filter(x => x === "Stone").length;
+          var counters = [countPapers, countScissors, countStones];
+          console.log(counters);
+          var finalChoice = Math.max(...counters);
+          console.log(finalChoice);
+          var personChoice;
+          if (counters.indexOf(finalChoice) == 0) {
+            personChoice = "Paper";
+          } else if (counters.indexOf(finalChoice) == 1) {
+            personChoice = "Scissor";
+          } else {
+            personChoice = "Stone";
+          }
+          console.log("Elegiste " + personChoice)
+          document.getElementsByClassName("player-choice")[0].src = "res/" + personChoice;          
+          var pcChoices = ["Paper", "Scissor", "Stone"];
+          var pcChoice = pcChoices[Math.floor(Math.random() * 3)];
+
+          console.log("La pc eligió" + pcChoice);
+          document.getElementsByClassName("pc-choice")[0].src = "res/" + pcChoice; 
+
+          var result = game(personChoice, pcChoice);
+
+          console.log("Has " + result);
+          document.getElementsByClassName("result")[0].innerHTML = "Has " + result;
+
+          console.log("Stone: " + countStones + " Scissors: " + countScissors + " Paper: " + countPapers);
+          handPose = [];
+        }
+      },
+      width: 1280,
+      height: 720
+    });
+    camera.start();
+  </script>
+</body>
+</html>
